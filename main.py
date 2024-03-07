@@ -14,7 +14,7 @@ structure = {}
 def get_structure():
     structure = {}
     if os.path.isfile("structure.json"):
-        with open("structure.json", "w") as file:
+        with open("structure.json", "r") as file:
             try:
                 structure = json.load(file)
             except json.JSONDecodeError:

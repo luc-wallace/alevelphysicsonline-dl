@@ -43,6 +43,7 @@ class Scraper:
         links = filter(lambda l: VIDEO_PAGE_RE.search(l), page.html.links)
         structure = {}
         for link in links:
+            print(link)
             video_page = self.session.get(link)
             title = (
                 video_page.html.find("title", first=True)
@@ -115,8 +116,9 @@ class Scraper:
             key=lambda p: p["bitrate"],
         )[-1]
 
-        print(f"Video quality: {video_blob['height']}x{video_blob['height']}")
-        print(f"Audio bitrate: {round(audio_blob['bitrate']/1000)} kbps")
+        print(
+            f"Format: {video_blob['format']}, Video quality: {video_blob['width']}x{video_blob['height']}, Audio bitrate: {round(audio_blob['bitrate']/1000)} kbps"
+        )
 
         video_file = data["clip_id"] + "_video.mp4"
         audio_file = data["clip_id"] + "_audio.mp4"
@@ -134,12 +136,14 @@ class Scraper:
 
         print("Downloading video segments...")
         self.__download_bundle(video_url, video_blob, video_file)
+
         print("Downloading audio segments...")
         self.__download_bundle(audio_url, audio_blob, audio_file)
 
         print("Merging files...")
-        subprocess.run(
-            f"ffmpeg -loglevel quiet -y -i {video_file} -i {audio_file} -c copy {out_file}"
+        subprocess.call(
+            f"ffmpeg -loglevel quiet -y -i {video_file} -i {audio_file} -c copy {out_file}",
+            shell=True,
         )
         os.remove(video_file)
         os.remove(audio_file)
@@ -165,15 +169,23 @@ class Scraper:
         total_downloaded = 0
 
         for i, segment in enumerate(blob["segments"]):
-            res = self.session.get(base_url + segment["url"])
-            if res.status_code == 200:
-                file.write(res.content)
-                total_downloaded += segment["size"]
-                bar.update(total_downloaded)
-                continue
-            print(f"packet {i} failed: {res.status_code}")
-            time.sleep(3)
+            fails = 0
+            while True:
+                packet_url = base_url + segment["url"]
+                res = self.session.get(packet_url)
+                if res.status_code == 200:
+                    file.write(res.content)
+                    total_downloaded += segment["size"]
+                    bar.update(total_downloaded)
+                    break
+                fails += 1
+                bar.print(f"Packet {i} failed: {res.status_code} ({fails}/3)")
+                if fails == 3:
+                    file.close()
+                    raise Exception(f"Packet download failed: {packet_url}")
+                time.sleep(3)
 
         file.close()
         progressbar.streams.flush()
         print()
+        return total_downloaded == total_size
