@@ -1,0 +1,2 @@
+progressbar2==4.4.1
+requests-html==0.10.0
