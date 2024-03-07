@@ -70,9 +70,6 @@ class Scraper:
             .strip()
         )
 
-        with open("out.html", "wb") as f:
-            f.write(page.content)
-
         for link in page.html.find("link"):
             if not PRE_SCRIPT_URL_RE.search(link.attrs["href"]):
                 continue
